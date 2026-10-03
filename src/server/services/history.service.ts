@@ -1,7 +1,7 @@
 import { prisma } from '@/server/db';
 import { SessionUser } from '@/types';
 import { notFoundError } from '@/lib/errors';
-import { canViewWorkItem } from '@/server/authorization';
+import { ctxFor, policy } from '@/server/authorization';
 
 /**
  * Get paginated history (events) for a work item.
@@ -24,8 +24,8 @@ export async function getWorkItemHistory(
     throw notFoundError('Work item not found');
   }
 
-  const canView = await canViewWorkItem(actor, item);
-  if (!canView) {
+  const ctx = await ctxFor(actor, item.teamId);
+  if (!policy.view(ctx)) {
     throw notFoundError('Work item not found');
   }
 

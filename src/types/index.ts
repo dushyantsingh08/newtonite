@@ -119,13 +119,9 @@ export interface WorkItemFilters {
 // ─── Dashboard Types ─────────────────────────────────────────
 
 export interface DashboardStats {
-  totalItems: number;
   openItems: number;
   myAssigned: number;
   needsAttention: number;
-  critical: number;
-  overdue: number;
-  blocked: number;
   unassigned: number;
 }
 

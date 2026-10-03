@@ -1,5 +1,7 @@
 # Operations Work Manager
 
+**🚀 Live Demo:** [https://newtonite.vercel.app/](https://newtonite.vercel.app/)
+
 A reliable, full-stack Next.js application for coordinating internal operational work. Built for the Newtonite Software Engineering Challenge.
 
 ## Features

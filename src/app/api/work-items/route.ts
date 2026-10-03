@@ -4,6 +4,7 @@ import { withApiRoute, withIdempotency } from '@/lib/api';
 import { createWorkItemSchema } from '@/lib/validation';
 import { createWorkItem, listWorkItems } from '@/server/services/work-item.service';
 import { WorkItemFilters, WorkItemStatus, WorkItemPriority } from '@/types';
+import { prisma } from '@/server/db';
 
 export const GET = withApiRoute(async (req) => {
   const user = await requireAuth();
@@ -23,12 +24,12 @@ export const GET = withApiRoute(async (req) => {
     cursor: searchParams.get('cursor') || undefined,
   };
 
-  const result = await listWorkItems(user, filters);
+  const result = await listWorkItems(prisma, user, filters);
   return NextResponse.json({ data: result });
 });
 
-export const POST = withIdempotency(async (req, context, parsedBody) => {
+export const POST = withIdempotency(async (req, context, parsedBody, tx) => {
   const user = await requireAuth();
-  const item = await createWorkItem(user, parsedBody);
+  const item = await createWorkItem(tx, user, parsedBody);
   return { status: 201, data: { data: item } };
 }, createWorkItemSchema);

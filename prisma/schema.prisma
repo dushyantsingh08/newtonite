@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────
+
+enum GlobalRole {
+  ADMIN
+  USER
+}
+
+enum TeamRole {
+  VIEWER
+  MEMBER
+  LEAD
+}
+
+enum WorkItemStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  WAITING_APPROVAL
+  RESOLVED
+  CLOSED
+}
+
+enum WorkItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ItemEventType {
+  CREATED
+  UPDATED
+  ASSIGNED
+  UNASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  TEAM_CHANGED
+  DUE_DATE_CHANGED
+  APPROVAL_REQUESTED
+  APPROVED
+  REOPENED
+  COMMENTED
+}
+
+// ─── Models ──────────────────────────────────────────────────
+
+model User {
+  id         String     @id @default(cuid())
+  name       String
+  email      String     @unique
+  password   String
+  globalRole GlobalRole @default(USER)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  memberships      TeamMembership[]
+  requestedItems   WorkItem[]       @relation("requester")
+  assignedItems    WorkItem[]       @relation("assignee")
+  approvedItems    WorkItem[]       @relation("approver")
+  actorEvents      ItemEvent[]      @relation("actor")
+  idempotencyKeys  IdempotencyKey[]
+
+  @@map("users")
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  memberships TeamMembership[]
+  workItems   WorkItem[]
+
+  @@map("teams")
+}
+
+model TeamMembership {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id")
+  role      TeamRole @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@map("team_memberships")
+}
+
+model WorkItem {
+  id          String           @id @default(cuid())
+  title       String
+  description String
+
+  status   WorkItemStatus   @default(OPEN)
+  priority WorkItemPriority @default(MEDIUM)
+
+  teamId String @map("team_id")
+
+  requesterId String  @map("requester_id")
+  assigneeId  String? @map("assignee_id")
+
+  requiresApproval Boolean   @default(false) @map("requires_approval")
+  approvedById     String?   @map("approved_by_id")
+  approvedAt       DateTime? @map("approved_at")
+
+  dueAt DateTime? @map("due_at")
+
+  version Int @default(1)
+
+  lastActivityAt DateTime @default(now()) @map("last_activity_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Full-text search vector (managed via raw SQL migration)
+  // searchVector Unsupported("tsvector")?
+
+  // Relations
+  team      Team        @relation(fields: [teamId], references: [id])
+  requester User        @relation("requester", fields: [requesterId], references: [id])
+  assignee  User?       @relation("assignee", fields: [assigneeId], references: [id])
+  approvedBy User?      @relation("approver", fields: [approvedById], references: [id])
+  events    ItemEvent[]
+
+  // Indexes for common query patterns
+  @@index([teamId, status, priority, updatedAt])
+  @@index([assigneeId, status, updatedAt])
+  @@index([status])
+  @@index([priority])
+  @@index([lastActivityAt])
+  @@index([dueAt])
+  @@index([requesterId])
+  @@map("work_items")
+}
+
+model ItemEvent {
+  id         String        @id @default(cuid())
+  workItemId String        @map("work_item_id")
+  actorId    String        @map("actor_id")
+  type       ItemEventType
+  before     Json?
+  after      Json?
+  metadata   Json?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  workItem WorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  actor    User     @relation("actor", fields: [actorId], references: [id])
+
+  @@index([workItemId, createdAt])
+  @@index([workItemId, id])
+  @@map("item_events")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  key          String
+  endpoint     String
+  requestHash  String   @map("request_hash")
+  statusCode   Int      @map("status_code")
+  responseJson Json     @map("response_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  expiresAt    DateTime @map("expires_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key, endpoint])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

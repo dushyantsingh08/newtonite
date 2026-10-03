@@ -45,6 +45,7 @@ export default function WorkItemDetailPage({ params }: { params: Promise<{ id: s
     queryClient.invalidateQueries({ queryKey: ['work-item', id] });
     queryClient.invalidateQueries({ queryKey: ['work-item-history', id] });
     queryClient.invalidateQueries({ queryKey: ['stats'] });
+    queryClient.invalidateQueries({ queryKey: ['work-items'] });
   };
 
   const handleError = (err: any) => {

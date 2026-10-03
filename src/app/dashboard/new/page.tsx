@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { WorkItemPriority, ApiListResponse } from '@/types';
@@ -10,6 +10,7 @@ import Link from 'next/link';
 
 export default function NewWorkItemPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,6 +43,8 @@ export default function NewWorkItemPage() {
       return res.json();
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['work-items'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
       router.push(`/dashboard/items/${data.data.id}`);
     },
     onError: (err: any) => {

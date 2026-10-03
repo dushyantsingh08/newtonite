@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { prisma } from '@/server/db';
 import { claimWorkItem, updateWorkItem, createWorkItem } from '@/server/services/work-item.service';
-import { getAuthorizedTeamIds } from '@/server/authorization';
-import { checkIdempotency, storeIdempotencyResult, computeRequestHash } from '@/server/services/idempotency.service';
-import { GlobalRole, WorkItemPriority, WorkItemStatus } from '@/types';
-import { AppError } from '@/lib/errors';
+import { withIdempotency } from '@/server/services/idempotency.service';
+import { GlobalRole, WorkItemPriority } from '@/types';
 
 // These tests require a running database to actually pass,
 // but they demonstrate the correctness of the operations as requested.
@@ -37,7 +35,7 @@ describe('Core Correctness', () => {
     if (!adminUser) return;
     
     // Create an unassigned item
-    const item = await createWorkItem(adminUser, {
+    const item = await createWorkItem(prisma, adminUser, {
       title: 'Concurrent claim test',
       description: 'Desc',
       teamId: testTeam.id,
@@ -45,7 +43,7 @@ describe('Core Correctness', () => {
     });
 
     // Simulate 20 concurrent claim attempts
-    const attempts = Array.from({ length: 20 }).map(() => claimWorkItem(adminUser, item.id));
+    const attempts = Array.from({ length: 20 }).map(() => claimWorkItem(prisma, adminUser, item.id));
     
     const results = await Promise.allSettled(attempts);
     
@@ -67,7 +65,7 @@ describe('Core Correctness', () => {
   it('Test 2 — Stale update', async () => {
     if (!adminUser) return;
 
-    const item = await createWorkItem(adminUser, {
+    const item = await createWorkItem(prisma, adminUser, {
       title: 'Stale update test',
       description: 'Desc',
       teamId: testTeam.id,
@@ -75,14 +73,14 @@ describe('Core Correctness', () => {
     });
 
     // Update 1: successful
-    await updateWorkItem(adminUser, item.id, {
+    await updateWorkItem(prisma, adminUser, item.id, {
       title: 'New Title',
       expectedVersion: 1
     });
 
     // Update 2: stale
     await expect(
-      updateWorkItem(adminUser, item.id, {
+      updateWorkItem(prisma, adminUser, item.id, {
         description: 'New Desc',
         expectedVersion: 1 // Sending the old version
       })
@@ -95,26 +93,28 @@ describe('Core Correctness', () => {
     const key = 'test-idempotency-key';
     const endpoint = '/test-endpoint';
     const payload = { test: 'payload' };
-    const hash = computeRequestHash(payload);
 
-    // Initial check (should be null)
-    let existing = await checkIdempotency(adminUser.id, key, endpoint, hash);
-    expect(existing).toBeNull();
-
-    // Store result
-    await prisma.$transaction(async tx => {
-      await storeIdempotencyResult(tx, adminUser.id, key, endpoint, hash, 201, { success: true });
-    });
+    // Initial check
+    const result1 = await withIdempotency(
+      { userId: adminUser.id, key, endpoint, body: payload },
+      async (tx) => ({ success: true })
+    );
+    expect(result1.replayed).toBe(false);
 
     // Second check with same payload
-    existing = await checkIdempotency(adminUser.id, key, endpoint, hash);
-    expect(existing?.statusCode).toBe(201);
-    expect((existing?.responseJson as any).success).toBe(true);
+    const result2 = await withIdempotency(
+      { userId: adminUser.id, key, endpoint, body: payload },
+      async (tx) => ({ success: false }) // Should not execute
+    );
+    expect(result2.replayed).toBe(true);
+    expect((result2.body as any).success).toBe(true);
 
     // Third check with DIFFERENT payload (should throw conflict)
-    const diffHash = computeRequestHash({ test: 'different' });
     await expect(
-      checkIdempotency(adminUser.id, key, endpoint, diffHash)
+      withIdempotency(
+        { userId: adminUser.id, key, endpoint, body: { test: 'different' } },
+        async (tx) => ({ success: true })
+      )
     ).rejects.toThrowError(/different request payload/);
   });
 });

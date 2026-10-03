@@ -39,3 +39,11 @@ Trade-offs: Requires fetching the item first before mutating it, which adds a sl
 - **Real-time WebSockets**: Complex to scale, not strictly required for correctness. We rely on optimistic UI updates and TanStack Query polling/refetching.
 - **Microservices**: A single Next.js monolith with proper boundaries (`/server/services`) is far easier to maintain and deploy.
 - **Complex Dynamic Workflow Engine**: We implemented explicit, hardcoded transition rules rather than a drag-and-drop workflow builder.
+
+## Future Improvements (Version 2)
+If granted an additional week of development to scale the application to Version 2, the following architectural upgrades would be prioritized:
+
+1. **True Real-time Synchronization (SSE):** Replace the 5-second TanStack Query polling with Server-Sent Events (SSE). This allows the server to instantly push invalidation signals to connected clients, providing immediate UI updates while vastly reducing idle read pressure on the database.
+2. **Asynchronous Task Queue:** Implement a dedicated message broker (e.g., BullMQ or Redis Pub/Sub) to handle secondary effects asynchronously. This ensures that features like sending email notifications or pushing Slack webhooks do not block the primary HTTP request thread.
+3. **Cursor-Based Infinite Scroll:** Enhance the frontend to consume the backend's already-implemented cursor pagination. Instead of just loading the top 50 items, implement an infinite scrolling list to gracefully handle user navigation through thousands of historical work items.
+4. **Full-Text Search Engine Integration:** As the item_events and descriptions grow, offload complex text searching from Postgres \ILIKE\ queries to a dedicated search index (like Elasticsearch or Meilisearch) for fast, typo-tolerant querying.

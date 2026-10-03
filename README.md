@@ -74,6 +74,8 @@ npm run build
 ## Known Limitations
 - **No real-time WebSockets:** UI requires manual refresh or relies on TanStack Query polling interval.
 - **No email/notifications:** Infrastructure for async workers is documented but not implemented in Phase 1.
+- **Basic Search:** Uses `ILIKE` on title/description. For massive scale, a true `tsvector` column should be added via raw SQL migration.
+- **No SSO/OAuth:** Uses seeded local credentials for demo purposes.
 
 ## Future Improvements (Version 2)
 If granted additional development time, the following architectural upgrades would be prioritized:
@@ -81,5 +83,3 @@ If granted additional development time, the following architectural upgrades wou
 2. **Asynchronous Task Queue:** Implement a dedicated message broker (e.g., BullMQ) for secondary effects like email notifications without blocking the HTTP request thread.
 3. **Cursor-Based Infinite Scroll:** Enhance the frontend to consume the backend's already-implemented cursor pagination for navigating historical work items.
 4. **Full-Text Search Integration:** Offload complex text searching from Postgres `ILIKE` queries to a dedicated search index (like Elasticsearch) for fast, typo-tolerant querying.
-- **Basic Search:** Uses `ILIKE` on title/description. For massive scale, a true `tsvector` column should be added via raw SQL migration.
-- **No SSO/OAuth:** Uses seeded local credentials for demo purposes.
